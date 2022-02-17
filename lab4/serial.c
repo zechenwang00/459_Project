@@ -40,3 +40,6 @@ int main(void)
 		// do nothing
 	}
 }
+
+
+// ref: https://ece-classes.usc.edu/ee459/library/documents/Serial_Port.pdf
