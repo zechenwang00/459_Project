@@ -1,4 +1,5 @@
 #include <avr/io.h>
+#include <stdio.h>
 
 /*
 serial_init - Initialize the USART port
@@ -34,10 +35,13 @@ int main(void)
 {
 	// initialize
 	serial_init(47);
+	char message;
 
 	while(1)
 	{
-		// do nothing
+		message = serial_in();
+		serial_out(message);
+		serial_out('\n');
 	}
 }
 
