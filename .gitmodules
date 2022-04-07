@@ -1,0 +1,3 @@
+[submodule "SSD1306"]
+	path = SSD1306
+	url = git@github.com:Matiasus/SSD1306.git
