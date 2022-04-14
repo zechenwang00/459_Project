@@ -34,110 +34,116 @@
  */
 int main(void)
 {
-  uint8_t addr = SSD1306_ADDRESS;
+    uint8_t addr = SSD1306_ADDRESS;
 
-  // init ssd1306
-  SSD1306_Init (addr);
+    // init ssd1306
+    SSD1306_Init (addr);
 
-  // clear screen
-  SSD1306_ClearScreen ();
+    // clear screen
+    SSD1306_ClearScreen ();
 
-  // init ports
+    // init ports
 
-  // PD2 = sound, PD3 = motion, PD7 & PB0 = tilt
-  DDRD &= ~(1 << DDD2 || 1 << DDD3 || 1 << DDD7);
-  DDRB &= ~(1 << DDB0);
-  PORTD &= ~(1 << PD2 || 1 << PD3 || 1 << PD7);
-  PORTB &= ~(1 << PB0);
+    // PD2 = sound, PD3 = motion, PD7 & PB0 = tilt
+    DDRD &= ~(1 << DDD2 || 1 << DDD3 || 1 << DDD7);
+    DDRB &= ~(1 << DDB0);
+    PORTD &= ~(1 << PD2 || 1 << PD3 || 1 << PD7);
+    PORTB &= ~(1 << PB0);
 
-  // vars
-  bool sound_signal = false;
-  bool motion_signal = false;
-  bool tilt_sig_1 = false;
-  bool tilt_sig_2 = false;
+    // vars
+    bool sound_signal = false;
+    bool motion_signal = false;
+    bool tilt_sig_1 = false;
+    bool tilt_sig_2 = false;
 
-  // init readings
-  bool tilt_sig_1_default = PIND & (1 << PD7);
-  bool tilt_sig_2_default = PINB & (1 << PB0);
+    // init readings
+    bool tilt_sig_1_default = PIND & (1 << PD7);
+    bool tilt_sig_2_default = PINB & (1 << PB0);
 
-  while(1) {
-      // SSD1306_ClearScreen ();
-      // read sensors
+    while(1) {
 
-      if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
-          sound_signal = true;
-      } else {
-          sound_signal = false;
-      }
+        // TODO: Implement State Machine
+        // TODO: Implement Interrupts for tilt sensor
+        // TODO: Implement different intervals for reading different sensors
+        // TODO: Implement rotary encoder switching commands on lcd
 
-      if ((PIND & (1 << PD3)) != 0) {       // PD3 = motion
+        // SSD1306_ClearScreen ();
+        // read sensors
+
+        if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
+            sound_signal = true;
+        } else {
+            sound_signal = false;
+        }
+
+        if ((PIND & (1 << PD3)) != 0) {       // PD3 = motion
             motion_signal = true;
-      } else {
+        } else {
             motion_signal = false;
-      }
+        }
 
-      if ((PIND & (1 << PD7)) != 0) {       // PD7 = tilt 1
-          tilt_sig_1 = true;
-      } else {
-          tilt_sig_1 = false;
-      }
+        if ((PIND & (1 << PD7)) != 0) {       // PD7 = tilt 1
+            tilt_sig_1 = true;
+        } else {
+            tilt_sig_1 = false;
+        }
 
-      if ((PINB & (1 << PB0)) != 0) {       // PB0 = tilt 2
-          tilt_sig_2 = true;
-      } else {
-          tilt_sig_2 = false;
-      }
-
-
-
-          // update LCD
-      if (sound_signal) {
-          SSD1306_SetPosition(0,1);
-          SSD1306_DrawString("sound ON ");
-          SSD1306_UpdateScreen (addr);
-      } else {
-          SSD1306_SetPosition(0,1);
-          SSD1306_DrawString("sound OFF");
-          SSD1306_UpdateScreen (addr);
-      }
-
-      if (motion_signal) {
-          SSD1306_SetPosition(0,2);
-          SSD1306_DrawString("motion ON ");
-          SSD1306_UpdateScreen (addr);
-      } else {
-          SSD1306_SetPosition(0,2);
-          SSD1306_DrawString("motion OFF");
-          SSD1306_UpdateScreen (addr);
-      }
-
-      if ((tilt_sig_1 == tilt_sig_1_default) && (tilt_sig_2 == tilt_sig_2_default)) {
-          SSD1306_SetPosition(0,4);
-          SSD1306_DrawString("tilt off");
-          SSD1306_UpdateScreen (addr);
-      } else {
-          SSD1306_SetPosition(0,4);
-          SSD1306_DrawString("tilt on ");
-          SSD1306_UpdateScreen (addr);
-      }
-
-      SSD1306_SetPosition(0,6);
-      if (tilt_sig_1) {
-          SSD1306_DrawString("tilt b1: 1");
-      } else {
-          SSD1306_DrawString("tilt b1: 2");
-      }
-
-      SSD1306_SetPosition(0,7);
-      if (tilt_sig_2) {
-          SSD1306_DrawString("tilt b2: 1");
-      } else {
-          SSD1306_DrawString("tilt b2: 2");
-      }
+        if ((PINB & (1 << PB0)) != 0) {       // PB0 = tilt 2
+            tilt_sig_2 = true;
+        } else {
+            tilt_sig_2 = false;
+        }
 
 
-      _delay_ms(100);   // read signal every 200ms
-  }
+
+        // update LCD
+        if (sound_signal) {
+            SSD1306_SetPosition(0,1);
+            SSD1306_DrawString("sound ON ");
+            SSD1306_UpdateScreen (addr);
+        } else {
+            SSD1306_SetPosition(0,1);
+            SSD1306_DrawString("sound OFF");
+            SSD1306_UpdateScreen (addr);
+        }
+
+        if (motion_signal) {
+            SSD1306_SetPosition(0,2);
+            SSD1306_DrawString("motion ON ");
+            SSD1306_UpdateScreen (addr);
+        } else {
+            SSD1306_SetPosition(0,2);
+            SSD1306_DrawString("motion OFF");
+            SSD1306_UpdateScreen (addr);
+        }
+
+        if ((tilt_sig_1 == tilt_sig_1_default) && (tilt_sig_2 == tilt_sig_2_default)) {
+            SSD1306_SetPosition(0,4);
+            SSD1306_DrawString("tilt off");
+            SSD1306_UpdateScreen (addr);
+        } else {
+            SSD1306_SetPosition(0,4);
+            SSD1306_DrawString("tilt on ");
+            SSD1306_UpdateScreen (addr);
+        }
+
+        SSD1306_SetPosition(0,6);
+        if (tilt_sig_1) {
+            SSD1306_DrawString("tilt b1: 1");
+        } else {
+            SSD1306_DrawString("tilt b1: 2");
+        }
+
+        SSD1306_SetPosition(0,7);
+        if (tilt_sig_2) {
+            SSD1306_DrawString("tilt b2: 1");
+        } else {
+            SSD1306_DrawString("tilt b2: 2");
+        }
+
+
+        _delay_ms(100);   // read signal every 200ms
+    }
 
 
 
@@ -161,6 +167,6 @@ int main(void)
 //  // update
 //  SSD1306_UpdateScreen (addr);
 
-  // return value
-  return 0;
+    // return value
+    return 0;
 }
