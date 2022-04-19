@@ -46,7 +46,7 @@ int main(void)
     DDRB &= ~(1 << DDB0);
     PORTD &= ~(1 << PD2 || 1 << PD3 || 1 << PD7);
     PORTB &= ~(1 << PB0);
-    DDRC &= ~(1 << PC1);
+    DDRC &= ~(1 << PC2);
 
 
 
@@ -107,7 +107,7 @@ int main(void)
 
         // read ADC
         // TODO: use interrupts
-        // pressure = A1
+        // pressure = A2
         while ((ADCSRA & (1 << ADSC)) != 0);
         pressure = ADCH;
         sprintf(pressure_str, "%d", pressure);
