@@ -84,7 +84,7 @@ int main(void){
     DDRC &= ~(1 << PC1);
 
     // init ADC
-    // ADMUX: ref=AVCC, result=10bit, input=ADC1
+    // ADMUX: ref=AVCC, result=10bit, input=ADC1(potentiometer)
     ADMUX &= ~(1 << REFS1 | 1 << ADLAR | 1 << MUX3 | 1 << MUX2 | 1 << MUX1);
     ADMUX |=  (1 << REFS0 | 1 << MUX0);
     // ADCSRA: prescalar=128

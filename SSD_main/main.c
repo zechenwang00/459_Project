@@ -32,6 +32,29 @@
  *
  * @return  int
  */
+
+void switch_ADC_mux_and_convert(short num){
+    // only supports 1 and 2
+    switch(num) {
+        case 1:
+            ADMUX &= ~(1 << MUX3 | 1 << MUX2 | 1 << MUX1);
+            ADMUX |=  (1 << MUX0);
+            break;
+        case 2:
+            ADMUX &= ~(1 << MUX3 | 1 << MUX2 | 1 << MUX0);
+            ADMUX |=  (1 << MUX1);
+            break;
+        default:
+            break;
+    }
+    // start conversion
+    ADCSRA |= (1 << ADSC);
+    while ((ADCSRA & (1 << ADSC)) != 0);
+
+    return;
+}
+
+
 int main(void)
 {
     uint8_t addr = SSD1306_ADDRESS;
@@ -42,45 +65,42 @@ int main(void)
 
     // init ports
     // PD2 = sound, PD3 = motion, PD7 & PB0 = tilt
-    DDRD &= ~(1 << DDD2 || 1 << DDD3 || 1 << DDD7);
+    DDRD &= ~(1 << DDD2 | 1 << DDD3 | 1 << DDD4 | 1 << DDD7);
     DDRB &= ~(1 << DDB0);
-    PORTD &= ~(1 << PD2 || 1 << PD3 || 1 << PD7);
-    PORTB &= ~(1 << PB0);
-    DDRC &= ~(1 << PC2);
-
-
+    DDRC &= ~(1 << PC1 | 1 << PC2);
 
     // init ADC
-    // ADMUX: ref=AVCC, result=8bit, input=ADC2
-    ADMUX &= ~(1 << REFS1 || 1 << MUX3 || 1 << MUX2 || 1 << MUX0);
-    ADMUX |=  (1 << REFS0 || 1 << ADLAR || 1 << MUX1);
+    // ADMUX: ref=AVCC, result=10bit, input=ADC1(potentiometer)
+    ADMUX &= ~(1 << REFS1 | 1 << ADLAR | 1 << MUX3 | 1 << MUX2 | 1 << MUX1);
+    ADMUX |=  (1 << REFS0 | 1 << MUX0);
     // ADCSRA: prescalar=128
-    ADCSRA |= (1 << ADEN || 1 << ADPS2 || 1 << ADPS1 || 1 << ADPS0);
+    ADCSRA |= (1 << ADEN | 1 << ADPS2 | 1 << ADPS1 | 1 << ADPS0);
 
 
     // init vars
     bool sound_signal = false;
     bool motion_signal = false;
+    bool button_signal = false;
     bool tilt_sig_1 = false;
     bool tilt_sig_2 = false;
     bool tilt_sig_1_default = PIND & (1 << PD7);
     bool tilt_sig_2_default = PINB & (1 << PB0);
-    unsigned short pressure;
+    unsigned short pot; // potentiometer ADC1
+    unsigned short pressure; // pressure ADC2
     char pressure_str[4];
+    char pot_str[4];
 
 
 
     while(1) {
-
+        // ---- Main Loop ----
         // TODO: Implement State Machine
         // TODO: Implement Interrupts for tilt sensor
         // TODO: Implement different intervals for reading different sensors
         // TODO: Implement rotary encoder switching commands on lcd
 
-        // SSD1306_ClearScreen ();
+         SSD1306_ClearScreen ();
         // read sensors
-        ADCSRA |= (1 << ADSC);
-
         if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
             sound_signal = true;
         } else {
@@ -92,6 +112,13 @@ int main(void)
         } else {
             motion_signal = false;
         }
+
+        if ((PIND & (1 << PD4)) != 0) {       // PD4 = button
+            button_signal = true;
+        } else {
+            button_signal = false;
+        }
+
 
         if ((PIND & (1 << PD7)) != 0) {       // PD7 = tilt 1
             tilt_sig_1 = true;
@@ -107,10 +134,15 @@ int main(void)
 
         // read ADC
         // TODO: use interrupts
-        // pressure = A2
-        while ((ADCSRA & (1 << ADSC)) != 0);
-        pressure = ADCH;
-        sprintf(pressure_str, "%d", pressure);
+            // potentiometer = ADC1
+            switch_ADC_mux_and_convert(1);
+            pot = ADC;
+            sprintf(pot_str, "%d   ", pot);
+
+            // pressure = ADC2
+            switch_ADC_mux_and_convert(2);
+            pressure = ADC;
+            sprintf(pressure_str, "%d   ", pressure);
 
 
 
@@ -118,32 +150,43 @@ int main(void)
         if (sound_signal) {
             SSD1306_SetPosition(0,1);
             SSD1306_DrawString("sound ON ");
-            SSD1306_UpdateScreen (addr);
         } else {
             SSD1306_SetPosition(0,1);
             SSD1306_DrawString("sound OFF");
-            SSD1306_UpdateScreen (addr);
         }
 
         if (motion_signal) {
             SSD1306_SetPosition(0,2);
             SSD1306_DrawString("motion ON ");
-            SSD1306_UpdateScreen (addr);
         } else {
             SSD1306_SetPosition(0,2);
             SSD1306_DrawString("motion OFF");
-            SSD1306_UpdateScreen (addr);
         }
 
-        if ((tilt_sig_1 == tilt_sig_1_default) && (tilt_sig_2 == tilt_sig_2_default)) {
-            SSD1306_SetPosition(0,4);
-            SSD1306_DrawString("tilt off");
-            SSD1306_UpdateScreen (addr);
+        if (button_signal) {
+            SSD1306_SetPosition(0,3);
+            SSD1306_DrawString("button ON ");
         } else {
-            SSD1306_SetPosition(0,4);
-            SSD1306_DrawString("tilt on ");
-            SSD1306_UpdateScreen (addr);
+            SSD1306_SetPosition(0,3);
+            SSD1306_DrawString("button OFF");
         }
+
+//        if ((tilt_sig_1 == tilt_sig_1_default) && (tilt_sig_2 == tilt_sig_2_default)) {
+//            SSD1306_SetPosition(0,3);
+//            SSD1306_DrawString("tilt off");
+//        } else {
+//            SSD1306_SetPosition(0,3);
+//            SSD1306_DrawString("tilt on ");
+//        }
+
+        SSD1306_SetPosition(0,5);
+        SSD1306_DrawString("poten: ");
+        SSD1306_DrawString(pot_str);
+
+        SSD1306_SetPosition(0,6);
+        SSD1306_DrawString("pressure: ");
+        SSD1306_DrawString(pressure_str);
+
 
 //        SSD1306_SetPosition(0,6);
 //        if (tilt_sig_1) {
@@ -159,40 +202,10 @@ int main(void)
 //            SSD1306_DrawString("tilt b2: 1");
 //        }
 
-        SSD1306_SetPosition(0,6);
-        if (pressure != 0) {
-            SSD1306_DrawString("pressure detected    ");
-        } else {
-            SSD1306_DrawString("pressure not detected");
-        }
-        SSD1306_SetPosition(0,7);
-        SSD1306_DrawString(pressure_str);
+        SSD1306_UpdTxtPosition();
         SSD1306_UpdateScreen (addr);
-
-        _delay_ms(100);   // read signal every 100ms
+        _delay_ms(50);   // read signal every 50ms
     }
-
-
-
-
-//  // draw line
-//  SSD1306_DrawLine (0, MAX_X, 4, 4);
-//  // set position
-//  SSD1306_SetPosition (7, 1);
-//  // draw string
-//  SSD1306_DrawString ("SSD1306 OLED DRIVER");
-//  // draw line
-//  SSD1306_DrawLine (0, MAX_X, 18, 18);
-//  // set position
-//  SSD1306_SetPosition (40, 3);
-//  // draw string
-//  SSD1306_DrawString ("MATIASUS");
-//  // set position
-//  SSD1306_SetPosition (53, 5);
-//  // draw string
-//  SSD1306_DrawString ("2021");
-//  // update
-//  SSD1306_UpdateScreen (addr);
 
     // return value
     return 0;
