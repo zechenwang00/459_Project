@@ -2,7 +2,9 @@
 #include <stdbool.h>
 #include <avr/io.h>
 #include <util/delay.h>
+#include <math.h>
 #include "lib/ssd1306.h"
+#include "lib/i2c.h"
 
 // definitions
 #define WELCOME_SCREEN  0
@@ -12,8 +14,11 @@
 
 #define MATERIAL_PLASTIC    0
 #define MATERIAL_GLASS      1
-#define MATERIAL_CARD       2
+#define MATERIAL_ALUM       2
 #define MATERIAL_PAPER      3
+
+#define FOSC 7372800
+#define BDIV ( FOSC / 100000 - 16) / 2 + 1
 
 // global vars
 unsigned short pot_choice = 0;
@@ -83,8 +88,15 @@ void showWelcome(void){
     SSD1306_DrawLine (0, MAX_X, 26, 26);
     SSD1306_SetPosition (40, 4);
     SSD1306_DrawString ("GROUP 16");
-    SSD1306_SetPosition (53, 6);
+    SSD1306_SetPosition (53, 5);
     SSD1306_DrawString ("2022");
+
+//    unsigned char i2c_rbuf[9];
+//
+//    i2c_init(BDIV);
+//    i2c_io(0x08, NULL, 0, NULL, 0, i2c_rbuf, 9);
+//    SSD1306_SetPosition (0, 7);
+//    SSD1306_DrawString( (char *) i2c_rbuf);
 }
 
 void selectMenu (short choice, char* symbol) {
@@ -99,10 +111,10 @@ void selectMenu (short choice, char* symbol) {
             SSD1306_DrawString(symbol);
             if (button_signal)  material = MATERIAL_GLASS;
             break;
-        case MATERIAL_CARD:
+        case MATERIAL_ALUM:
             SSD1306_SetPosition(0, 4);
             SSD1306_DrawString(symbol);
-            if (button_signal)  material = MATERIAL_CARD;
+            if (button_signal)  material = MATERIAL_ALUM;
             break;
         case MATERIAL_PAPER:
             SSD1306_SetPosition(0, 5);
@@ -127,11 +139,11 @@ void showMenu(uint8_t addr){
     SSD1306_DrawString("  Select Recyclable  ");
     SSD1306_DrawLine (0, MAX_X, 12, 12);
     SSD1306_SetPosition(0,2);
-    SSD1306_DrawString("  0. Plastic Bottles");
+    SSD1306_DrawString("  0. Plastic");
     SSD1306_SetPosition(0,3);
-    SSD1306_DrawString("  1. Glass Bottles");
+    SSD1306_DrawString("  1. Glass");
     SSD1306_SetPosition(0,4);
-    SSD1306_DrawString("  2. Card Boxes");
+    SSD1306_DrawString("  2. Aluminium");
     SSD1306_SetPosition(0,5);
     SSD1306_DrawString("  3. Paper");
     SSD1306_DrawLine (0, MAX_X, 52, 52);
@@ -142,26 +154,59 @@ void showMenu(uint8_t addr){
     selectMenu(choice, "->");
 }
 
+unsigned short calcWeight(unsigned short reading){
+//    double result;
+
+//    result = exp((10 * (double)reading * 5 / 1024 - 18) / 7) * 100;
+
+    return reading;
+}
+
 void showCarbon(unsigned short reading) {
+    unsigned short weight = calcWeight(reading);
+    unsigned short emissions = 0;
+    char emissions_str[10];
+    char weight_str[10];
+
     SSD1306_SetPosition(0, 0);
     switch (material) {
         case MATERIAL_PLASTIC:
             SSD1306_DrawString("Material: PLASTIC");
+            emissions = weight * 6;
             break;
         case MATERIAL_GLASS:
             SSD1306_DrawString("Material: GLASS");
+            emissions = weight / 2;
             break;
-        case MATERIAL_CARD:
-            SSD1306_DrawString("Material: CARDBOARD");
+        case MATERIAL_ALUM:
+            SSD1306_DrawString("Material: ALUMINIUM");
+            emissions = weight * 11;
             break;
         case MATERIAL_PAPER:
             SSD1306_DrawString("Material: PAPER");
+            emissions = weight;
             break;
         default:
             SSD1306_DrawString("Material: PLASTIC");
+            emissions = weight * 6;
             break;
     }
 
+    snprintf(emissions_str, 5, "%d", emissions);
+    snprintf(weight_str, 4, "%d", weight);
+
+    SSD1306_SetPosition(0, 2);
+    SSD1306_DrawString("Current Weight: ");
+    SSD1306_SetPosition(0, 3);
+    SSD1306_DrawString("    ");
+    SSD1306_DrawString(weight_str);
+    SSD1306_DrawString(" g");
+    SSD1306_SetPosition(0, 4);
+    SSD1306_DrawString("Equivalent CO2 Saved: ");
+    SSD1306_SetPosition(0, 5);
+    SSD1306_DrawString("    ");
+    SSD1306_DrawString(emissions_str);
+    SSD1306_DrawString(" g");
     SSD1306_DrawLine (0, MAX_X, 12, 12);
     SSD1306_SetPosition(0, 7);
     SSD1306_DrawString("->  Back  <-");
@@ -246,8 +291,6 @@ int main(void)
             button_signal = false;
         }
 
-        detectButton(button_signal);
-
         // read ADC
         // TODO: use interrupts
             // potentiometer = ADC1
@@ -316,6 +359,8 @@ int main(void)
             showCarbon(pressure);
 
         }
+
+        detectButton(button_signal);
 
         SSD1306_UpdTxtPosition();
         SSD1306_UpdateScreen (addr);
