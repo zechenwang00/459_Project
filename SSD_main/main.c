@@ -1,38 +1,20 @@
-/** 
- * ---------------------------------------------------------------+ 
- * @desc        OLED SSD1306 example
- * ---------------------------------------------------------------+ 
- *              Copyright (C) 2020 Marian Hrinko.
- *              Written by Marian Hrinko (mato.hrinko@gmail.com)
- *
- * @author      Marian Hrinko
- * @datum       06.10.2020
- * @update      19.07.2021
- * @file        main.c
- * @tested      AVR Atmega328p
- *
- * @depend      ssd1306.h
- * ---------------------------------------------------------------+
- * @descr       Version 1.0 -> applicable for 1 display
- *              Version 2.0 -> rebuild to 'cacheMemLcd' array
- * ---------------------------------------------------------------+
- */
-
-// include libraries
 #include <stdio.h>
 #include <stdbool.h>
 #include <avr/io.h>
 #include <util/delay.h>
 #include "lib/ssd1306.h"
 
-/**
- * @desc    Main function
- *
- * @param   void
- *
- * @return  int
- */
+// definitions
+#define WELCOME_SCREEN  0
+#define MENU_SCREEN     1
+#define SENSOR_SCREEN   2
 
+// global vars
+unsigned short pot_choice = 0;
+unsigned short curr_screen = WELCOME_SCREEN;
+uint8_t addr = SSD1306_ADDRESS;
+
+// functions
 void switch_ADC_mux_and_convert(short num){
     // only supports 1 and 2
     switch(num) {
@@ -54,11 +36,125 @@ void switch_ADC_mux_and_convert(short num){
     return;
 }
 
+void update_pot(short pot){
+    // potentiometer range: 336 -1023
+    // divided into 8 ranges
+    if (pot < 421 ){
+        pot_choice = 7;
+    }
+    else if (pot < 506){
+        pot_choice = 6;
+    }
+    else if (pot < 591){
+        pot_choice = 5;
+    }
+    else if (pot < 676){
+        pot_choice = 4;
+    }
+    else if (pot < 761){
+        pot_choice = 3;
+    }
+    else if (pot < 846){
+        pot_choice = 2;
+    }
+    else if (pot < 931){
+        pot_choice = 1;
+    }
+    else {
+        pot_choice = 0;
+    }
+}
+
+void showWelcome(void){
+    // draw welcome screen
+    SSD1306_DrawLine (0, MAX_X, 4, 4);
+    SSD1306_SetPosition (1, 1);
+    SSD1306_DrawString ("EE459 CAPSTONE");
+    SSD1306_SetPosition (1, 2);
+    SSD1306_DrawString ("Smart Recycling Bin");
+    SSD1306_DrawLine (0, MAX_X, 26, 26);
+    SSD1306_SetPosition (40, 4);
+    SSD1306_DrawString ("GROUP 16");
+    SSD1306_SetPosition (53, 6);
+    SSD1306_DrawString ("2022");
+}
+
+void showMenu(uint8_t addr){
+    SSD1306_ClearScreen ();
+    SSD1306_SetPosition(0,1);
+    // draws title and menu
+    SSD1306_DrawString("---Select Recyclable---");
+    SSD1306_SetPosition(0,2);
+    SSD1306_DrawString("  0. Plastic Bottles");
+    SSD1306_SetPosition(0,3);
+    SSD1306_DrawString("  1. Glass Bottles");
+    SSD1306_SetPosition(0,4);
+    SSD1306_DrawString("  2. Card Boxes");
+    SSD1306_SetPosition(0,5);
+    SSD1306_DrawString("  3. Paper");
+    SSD1306_SetPosition(0,6);
+    SSD1306_DrawString("  CALCULATE: ");
+    SSD1306_SetPosition(0,7);
+    SSD1306_DrawString("  SENSOR INFO");
+
+    short recyclable = pot_choice % 6;
+
+    switch (recyclable)
+    {
+        case 0:
+            SSD1306_SetPosition(0,2);
+            SSD1306_DrawString("->");
+            break;
+        case 1:
+            SSD1306_SetPosition(0,3);
+            SSD1306_DrawString("->");
+            break;
+        case 2:
+            SSD1306_SetPosition(0,4);
+            SSD1306_DrawString("->");
+            break;
+        case 3:
+            SSD1306_SetPosition(0,5);
+            SSD1306_DrawString("->");
+            break;
+        case 4:
+            SSD1306_SetPosition(0,6);
+            SSD1306_DrawString("->");
+            break;
+        case 5:
+            SSD1306_SetPosition(0,7);
+            SSD1306_DrawString("->");
+            break;
+        default:
+            SSD1306_SetPosition(0,2);
+            SSD1306_DrawString("->");
+            break;
+    }
+//`//debug info
+//    char pot_str[1];
+//    sprintf(pot_str, "%d", pot_choice);
+//    SSD1306_SetPosition(0, 7);
+//    SSD1306_DrawString(pot_str);
+}
+
+void detectButton(bool button){
+    if (button) {
+        if (curr_screen == WELCOME_SCREEN){
+            curr_screen = MENU_SCREEN;
+            _delay_ms(100);
+        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 6) == 5) ) {
+            curr_screen = SENSOR_SCREEN;
+            _delay_ms(100);
+        } else if (curr_screen == SENSOR_SCREEN){
+            curr_screen = MENU_SCREEN;
+            _delay_ms(100);
+        }
+    }
+}
+
 
 int main(void)
 {
-    uint8_t addr = SSD1306_ADDRESS;
-
     // init ssd1306
     SSD1306_Init (addr);
     SSD1306_ClearScreen ();
@@ -81,10 +177,6 @@ int main(void)
     bool sound_signal = false;
     bool motion_signal = false;
     bool button_signal = false;
-    bool tilt_sig_1 = false;
-    bool tilt_sig_2 = false;
-    bool tilt_sig_1_default = PIND & (1 << PD7);
-    bool tilt_sig_2_default = PINB & (1 << PB0);
     unsigned short pot; // potentiometer ADC1
     unsigned short pressure; // pressure ADC2
     char pressure_str[4];
@@ -119,18 +211,7 @@ int main(void)
             button_signal = false;
         }
 
-
-        if ((PIND & (1 << PD7)) != 0) {       // PD7 = tilt 1
-            tilt_sig_1 = true;
-        } else {
-            tilt_sig_1 = false;
-        }
-
-        if ((PINB & (1 << PB0)) != 0) {       // PB0 = tilt 2
-            tilt_sig_2 = true;
-        } else {
-            tilt_sig_2 = false;
-        }
+        detectButton(button_signal);
 
         // read ADC
         // TODO: use interrupts
@@ -138,6 +219,7 @@ int main(void)
             switch_ADC_mux_and_convert(1);
             pot = ADC;
             sprintf(pot_str, "%d   ", pot);
+            update_pot(pot);
 
             // pressure = ADC2
             switch_ADC_mux_and_convert(2);
@@ -147,60 +229,52 @@ int main(void)
 
 
         // update LCD
-        if (sound_signal) {
-            SSD1306_SetPosition(0,1);
-            SSD1306_DrawString("sound ON ");
-        } else {
-            SSD1306_SetPosition(0,1);
-            SSD1306_DrawString("sound OFF");
+        if (curr_screen == WELCOME_SCREEN){
+            showWelcome();
         }
 
-        if (motion_signal) {
-            SSD1306_SetPosition(0,2);
-            SSD1306_DrawString("motion ON ");
-        } else {
-            SSD1306_SetPosition(0,2);
-            SSD1306_DrawString("motion OFF");
+        if (curr_screen == MENU_SCREEN) {
+            showMenu(addr);
         }
 
-        if (button_signal) {
-            SSD1306_SetPosition(0,3);
-            SSD1306_DrawString("button ON ");
-        } else {
-            SSD1306_SetPosition(0,3);
-            SSD1306_DrawString("button OFF");
+        if (curr_screen == SENSOR_SCREEN) {
+            // debug info
+            if (sound_signal) {
+                SSD1306_SetPosition(0,1);
+                SSD1306_DrawString("sound ON ");
+            } else {
+                SSD1306_SetPosition(0,1);
+                SSD1306_DrawString("sound OFF");
+            }
+
+            if (motion_signal) {
+                SSD1306_SetPosition(0,2);
+                SSD1306_DrawString("motion ON ");
+            } else {
+                SSD1306_SetPosition(0,2);
+                SSD1306_DrawString("motion OFF");
+            }
+
+            if (button_signal) {
+                SSD1306_SetPosition(0,3);
+                SSD1306_DrawString("button ON ");
+            } else {
+                SSD1306_SetPosition(0,3);
+                SSD1306_DrawString("button OFF");
+            }
+
+            SSD1306_SetPosition(0,4);
+            SSD1306_DrawString("poten: ");
+            SSD1306_DrawString(pot_str);
+
+            SSD1306_SetPosition(0,5);
+            SSD1306_DrawString("pressure: ");
+            SSD1306_DrawString(pressure_str);
+
+            SSD1306_SetPosition(0,7);
+            SSD1306_DrawString("->  Back  <-");
         }
 
-//        if ((tilt_sig_1 == tilt_sig_1_default) && (tilt_sig_2 == tilt_sig_2_default)) {
-//            SSD1306_SetPosition(0,3);
-//            SSD1306_DrawString("tilt off");
-//        } else {
-//            SSD1306_SetPosition(0,3);
-//            SSD1306_DrawString("tilt on ");
-//        }
-
-        SSD1306_SetPosition(0,5);
-        SSD1306_DrawString("poten: ");
-        SSD1306_DrawString(pot_str);
-
-        SSD1306_SetPosition(0,6);
-        SSD1306_DrawString("pressure: ");
-        SSD1306_DrawString(pressure_str);
-
-
-//        SSD1306_SetPosition(0,6);
-//        if (tilt_sig_1) {
-//            SSD1306_DrawString("tilt b1: 0");
-//        } else {
-//            SSD1306_DrawString("tilt b1: 1");
-//        }
-//
-//        SSD1306_SetPosition(0,7);
-//        if (tilt_sig_2) {
-//            SSD1306_DrawString("tilt b2: 0");
-//        } else {
-//            SSD1306_DrawString("tilt b2: 1");
-//        }
 
         SSD1306_UpdTxtPosition();
         SSD1306_UpdateScreen (addr);
