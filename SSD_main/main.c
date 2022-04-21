@@ -11,6 +11,7 @@
 #define MENU_SCREEN     1
 #define SENSOR_SCREEN   2
 #define CARBON_SCREEN   3
+#define DEBUG_SCREEN    4
 
 #define MATERIAL_PLASTIC    0
 #define MATERIAL_GLASS      1
@@ -21,11 +22,11 @@
 #define BDIV ( FOSC / 100000 - 16) / 2 + 1
 
 // global vars
-unsigned short pot_choice = 0;
-unsigned short curr_screen = WELCOME_SCREEN;
-unsigned short material = MATERIAL_PLASTIC;
+volatile unsigned short pot_choice = 0;
+volatile unsigned short curr_screen = WELCOME_SCREEN;
+volatile unsigned short material = MATERIAL_PLASTIC;
 uint8_t addr = SSD1306_ADDRESS;
-bool button_signal = false;
+volatile bool button_signal = false;
 
 // functions
 void switch_ADC_mux_and_convert(short num){
@@ -122,6 +123,10 @@ void selectMenu (short choice, char* symbol) {
             if (button_signal)  material = MATERIAL_PAPER;
             break;
         case 4:
+            SSD1306_SetPosition(0, 6);
+            SSD1306_DrawString(symbol);
+            break;
+        case 5:
             SSD1306_SetPosition(0, 7);
             SSD1306_DrawString(symbol);
             break;
@@ -133,7 +138,7 @@ void selectMenu (short choice, char* symbol) {
     }
 }
 
-void showMenu(uint8_t addr){
+void showMenu(void){
     // draws title and menu
     SSD1306_SetPosition(0,0);
     SSD1306_DrawString("  Select Recyclable  ");
@@ -146,25 +151,27 @@ void showMenu(uint8_t addr){
     SSD1306_DrawString("  2. Aluminium");
     SSD1306_SetPosition(0,5);
     SSD1306_DrawString("  3. Paper");
-    SSD1306_DrawLine (0, MAX_X, 52, 52);
+    SSD1306_SetPosition(0,6);
+    SSD1306_DrawString("  DEBUG");
+//    SSD1306_DrawLine (0, MAX_X, 52, 52);
     SSD1306_SetPosition(0,7);
     SSD1306_DrawString("  SENSOR INFO");
 
-    short choice = pot_choice % 5;
+    short choice = pot_choice % 6;
     selectMenu(choice, "->");
 }
 
 unsigned short calcWeight(unsigned short reading){
-//    double result;
+    double result;
+    result = exp((10 * (double)reading * 5 / 1024 - 18) / 7) * 100 - 7;
+    if (result < 0) result = 0;
 
-//    result = exp((10 * (double)reading * 5 / 1024 - 18) / 7) * 100;
-
-    return reading;
+    return result;
 }
 
 void showCarbon(unsigned short reading) {
     unsigned short weight = calcWeight(reading);
-    unsigned short emissions = 0;
+    unsigned short emissions;
     char emissions_str[10];
     char weight_str[10];
 
@@ -192,8 +199,8 @@ void showCarbon(unsigned short reading) {
             break;
     }
 
-    snprintf(emissions_str, 5, "%d", emissions);
-    snprintf(weight_str, 4, "%d", weight);
+    snprintf(emissions_str, 5, "%u", emissions);
+    snprintf(weight_str, 4, "%u", weight);
 
     SSD1306_SetPosition(0, 2);
     SSD1306_DrawString("Current Weight: ");
@@ -212,15 +219,112 @@ void showCarbon(unsigned short reading) {
     SSD1306_DrawString("->  Back  <-");
 }
 
+void playSound(void){
+//    uint8_t pwm = 0x80;
+//    bool up = true;
+//    for(;;) {
+//        OCR0A = pwm;
+//
+//        pwm += up ? 1 : -1;
+//        if (pwm == 0xff)
+//            up = false;
+//        else if (pwm == 0x00);
+//            up = true;
+//
+//        _delay_ms(10);
+//    }
+
+    unsigned long period;
+    unsigned int freq = 440;
+    period = 1000000 / freq;
+
+    while(freq--) {
+        PORTD |=  (1 << PD7);
+        _delay_us(period/2);
+        PORTD &= ~(1 << PD7);
+        _delay_us(period/2);
+    }
+}
+
+void servoClose() {
+    //  3% -  600us, 19400us
+    // 13% - 2600us, 17400us
+    unsigned short time = 50;                 // 1s
+
+    while(time--) {
+        PORTD |=  (1 << PD6);
+        _delay_us(1000);
+        PORTD &= ~(1 << PD6);
+        _delay_us(19000);
+    }
+}
+
+void servoOpen() {
+    //  3% -  600us, 19400us
+    // 13% - 2600us, 17400us
+    unsigned short time = 50;                 // 1s
+
+    while(time--) {
+        PORTD |=  (1 << PD6);
+        _delay_us(2600);
+        PORTD &= ~(1 << PD6);
+        _delay_us(17400);
+    }
+}
+
+void showDebug(void) {
+    SSD1306_SetPosition(0,0);
+    SSD1306_DrawString("DEBUG");
+    SSD1306_DrawLine (0, MAX_X, 12, 12);
+    SSD1306_SetPosition(0,2);
+    SSD1306_DrawString("  BUZZER");
+    SSD1306_SetPosition(0,3);
+    SSD1306_DrawString("  SERVO");
+    SSD1306_SetPosition(0,7);
+    SSD1306_DrawString("  Back");
+
+    short choice = pot_choice % 3;
+    switch (choice) {
+        case 0:
+            SSD1306_SetPosition(0, 2);
+            SSD1306_DrawString("->");
+            if (button_signal) playSound();
+            break;
+        case 1:
+            SSD1306_SetPosition(0, 3);
+            SSD1306_DrawString("->");
+            if (button_signal) {
+                SSD1306_SetPosition(0, 4);
+                SSD1306_DrawString("goto: 0  ");
+                servoOpen();
+                _delay_ms(200);
+                servoClose();
+                _delay_ms(200);
+            }
+            break;
+        case 2:
+            SSD1306_SetPosition(0, 7);
+            SSD1306_DrawString("->");
+            break;
+        default:
+            SSD1306_SetPosition(0, 7);
+            SSD1306_DrawString("->");
+            break;
+    }
+}
+
 void detectButton(bool button){
     if (button) {
         if (curr_screen == WELCOME_SCREEN){
             curr_screen = MENU_SCREEN;
             _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 5) != 4) ) {
+        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) < 4) ) {
             curr_screen = CARBON_SCREEN;
             _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 5) == 4) ) {
+        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) == 4) ) {
+            curr_screen = DEBUG_SCREEN;
+            _delay_ms(100);
+        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) == 5) ) {
             curr_screen = SENSOR_SCREEN;
             _delay_ms(100);
         } else if (curr_screen == SENSOR_SCREEN) {
@@ -229,11 +333,16 @@ void detectButton(bool button){
         } else if (curr_screen == CARBON_SCREEN) {
             curr_screen = MENU_SCREEN;
             _delay_ms(100);
+        } else if ((curr_screen == DEBUG_SCREEN) & ( (pot_choice % 3) == 2) ) {
+            curr_screen = MENU_SCREEN;
+            _delay_ms(100);
         }
     }
 }
 
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EndlessLoop"
 int main(void)
 {
     // init ssd1306
@@ -241,10 +350,12 @@ int main(void)
     SSD1306_ClearScreen ();
 
     // init ports
-    // PD2 = sound, PD3 = motion, PD7 & PB0 = tilt
-    DDRD &= ~(1 << DDD2 | 1 << DDD3 | 1 << DDD4 | 1 << DDD7);
-    DDRB &= ~(1 << DDB0);
+    // PD2 = sound, PD3 = motion
+    DDRD &= ~(1 << DDD2 | 1 << DDD3 | 1 << DDD4);
     DDRC &= ~(1 << PC1 | 1 << PC2);
+    // PD6 = buzzer
+    DDRD |= (1 << DDD6 | 1 << DDD7);
+    PORTD &= ~(1 << PD6 | 1 << PD7);
 
     // init ADC
     // ADMUX: ref=AVCC, result=10bit, input=ADC1(potentiometer)
@@ -252,6 +363,14 @@ int main(void)
     ADMUX |=  (1 << REFS0 | 1 << MUX0);
     // ADCSRA: prescalar=128
     ADCSRA |= (1 << ADEN | 1 << ADPS2 | 1 << ADPS1 | 1 << ADPS0);
+
+    // init PWM
+    // buzzer
+//    TCCR0A |=  (1 << COM0A1 | 1 << WGM01 | 1 << WGM00);
+//    TCCR0A &= ~(1 << COM0A0);
+//    TCCR0B |=  (1 << CS02);
+//    TCCR0B &= ~(1 << WGM02 | 1 << CS01 | 1 << CS00);
+//    OCR0A = 0;
 
 
     // init vars
@@ -313,8 +432,11 @@ int main(void)
 
         if (curr_screen == MENU_SCREEN) {
             // display menu
-            showMenu(addr);
+            showMenu();
+        }
 
+        if (curr_screen == DEBUG_SCREEN) {
+            showDebug();
         }
 
         if (curr_screen == SENSOR_SCREEN) {
@@ -370,3 +492,4 @@ int main(void)
     // return value
     return 0;
 }
+#pragma clang diagnostic pop
