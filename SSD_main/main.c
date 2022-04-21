@@ -473,6 +473,13 @@ int main(void)
             SSD1306_DrawString("pressure: ");
             SSD1306_DrawString(pressure_str);
 
+            if (motion_signal & sound_signal) {
+                servoOpen();
+                _delay_ms(100);
+                servoClose();
+                _delay_ms(100);
+            }
+
             SSD1306_SetPosition(0,7);
             SSD1306_DrawString("->  Back  <-");
         }
