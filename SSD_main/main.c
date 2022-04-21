@@ -8,11 +8,19 @@
 #define WELCOME_SCREEN  0
 #define MENU_SCREEN     1
 #define SENSOR_SCREEN   2
+#define CARBON_SCREEN   3
+
+#define MATERIAL_PLASTIC    0
+#define MATERIAL_GLASS      1
+#define MATERIAL_CARD       2
+#define MATERIAL_PAPER      3
 
 // global vars
 unsigned short pot_choice = 0;
 unsigned short curr_screen = WELCOME_SCREEN;
+unsigned short material = MATERIAL_PLASTIC;
 uint8_t addr = SSD1306_ADDRESS;
+bool button_signal = false;
 
 // functions
 void switch_ADC_mux_and_convert(short num){
@@ -79,11 +87,45 @@ void showWelcome(void){
     SSD1306_DrawString ("2022");
 }
 
+void selectMenu (short choice, char* symbol) {
+    switch (choice) {
+        case MATERIAL_PLASTIC:
+            SSD1306_SetPosition(0, 2);
+            SSD1306_DrawString(symbol);
+            if (button_signal)  material = MATERIAL_PLASTIC;
+            break;
+        case MATERIAL_GLASS:
+            SSD1306_SetPosition(0, 3);
+            SSD1306_DrawString(symbol);
+            if (button_signal)  material = MATERIAL_GLASS;
+            break;
+        case MATERIAL_CARD:
+            SSD1306_SetPosition(0, 4);
+            SSD1306_DrawString(symbol);
+            if (button_signal)  material = MATERIAL_CARD;
+            break;
+        case MATERIAL_PAPER:
+            SSD1306_SetPosition(0, 5);
+            SSD1306_DrawString(symbol);
+            if (button_signal)  material = MATERIAL_PAPER;
+            break;
+        case 4:
+            SSD1306_SetPosition(0, 7);
+            SSD1306_DrawString(symbol);
+            break;
+        default:
+            SSD1306_SetPosition(0, 2);
+            SSD1306_DrawString(symbol);
+            break;
+
+    }
+}
+
 void showMenu(uint8_t addr){
-    SSD1306_ClearScreen ();
-    SSD1306_SetPosition(0,1);
     // draws title and menu
-    SSD1306_DrawString("---Select Recyclable---");
+    SSD1306_SetPosition(0,0);
+    SSD1306_DrawString("  Select Recyclable  ");
+    SSD1306_DrawLine (0, MAX_X, 12, 12);
     SSD1306_SetPosition(0,2);
     SSD1306_DrawString("  0. Plastic Bottles");
     SSD1306_SetPosition(0,3);
@@ -92,49 +134,37 @@ void showMenu(uint8_t addr){
     SSD1306_DrawString("  2. Card Boxes");
     SSD1306_SetPosition(0,5);
     SSD1306_DrawString("  3. Paper");
-    SSD1306_SetPosition(0,6);
-    SSD1306_DrawString("  CALCULATE: ");
+    SSD1306_DrawLine (0, MAX_X, 52, 52);
     SSD1306_SetPosition(0,7);
     SSD1306_DrawString("  SENSOR INFO");
 
-    short recyclable = pot_choice % 6;
+    short choice = pot_choice % 5;
+    selectMenu(choice, "->");
+}
 
-    switch (recyclable)
-    {
-        case 0:
-            SSD1306_SetPosition(0,2);
-            SSD1306_DrawString("->");
+void showCarbon(unsigned short reading) {
+    SSD1306_SetPosition(0, 0);
+    switch (material) {
+        case MATERIAL_PLASTIC:
+            SSD1306_DrawString("Material: PLASTIC");
             break;
-        case 1:
-            SSD1306_SetPosition(0,3);
-            SSD1306_DrawString("->");
+        case MATERIAL_GLASS:
+            SSD1306_DrawString("Material: GLASS");
             break;
-        case 2:
-            SSD1306_SetPosition(0,4);
-            SSD1306_DrawString("->");
+        case MATERIAL_CARD:
+            SSD1306_DrawString("Material: CARDBOARD");
             break;
-        case 3:
-            SSD1306_SetPosition(0,5);
-            SSD1306_DrawString("->");
-            break;
-        case 4:
-            SSD1306_SetPosition(0,6);
-            SSD1306_DrawString("->");
-            break;
-        case 5:
-            SSD1306_SetPosition(0,7);
-            SSD1306_DrawString("->");
+        case MATERIAL_PAPER:
+            SSD1306_DrawString("Material: PAPER");
             break;
         default:
-            SSD1306_SetPosition(0,2);
-            SSD1306_DrawString("->");
+            SSD1306_DrawString("Material: PLASTIC");
             break;
     }
-//`//debug info
-//    char pot_str[1];
-//    sprintf(pot_str, "%d", pot_choice);
-//    SSD1306_SetPosition(0, 7);
-//    SSD1306_DrawString(pot_str);
+
+    SSD1306_DrawLine (0, MAX_X, 12, 12);
+    SSD1306_SetPosition(0, 7);
+    SSD1306_DrawString("->  Back  <-");
 }
 
 void detectButton(bool button){
@@ -142,10 +172,16 @@ void detectButton(bool button){
         if (curr_screen == WELCOME_SCREEN){
             curr_screen = MENU_SCREEN;
             _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 6) == 5) ) {
+        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 5) != 4) ) {
+            curr_screen = CARBON_SCREEN;
+            _delay_ms(100);
+        } else if ( (curr_screen == MENU_SCREEN) & ((pot_choice % 5) == 4) ) {
             curr_screen = SENSOR_SCREEN;
             _delay_ms(100);
-        } else if (curr_screen == SENSOR_SCREEN){
+        } else if (curr_screen == SENSOR_SCREEN) {
+            curr_screen = MENU_SCREEN;
+            _delay_ms(100);
+        } else if (curr_screen == CARBON_SCREEN) {
             curr_screen = MENU_SCREEN;
             _delay_ms(100);
         }
@@ -176,7 +212,6 @@ int main(void)
     // init vars
     bool sound_signal = false;
     bool motion_signal = false;
-    bool button_signal = false;
     unsigned short pot; // potentiometer ADC1
     unsigned short pressure; // pressure ADC2
     char pressure_str[4];
@@ -234,7 +269,9 @@ int main(void)
         }
 
         if (curr_screen == MENU_SCREEN) {
+            // display menu
             showMenu(addr);
+
         }
 
         if (curr_screen == SENSOR_SCREEN) {
@@ -275,6 +312,10 @@ int main(void)
             SSD1306_DrawString("->  Back  <-");
         }
 
+        if (curr_screen == CARBON_SCREEN) {
+            showCarbon(pressure);
+
+        }
 
         SSD1306_UpdTxtPosition();
         SSD1306_UpdateScreen (addr);
