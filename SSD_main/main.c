@@ -118,7 +118,7 @@ void showTime(struct rtc_time timeData, int line) {
     char yrs_str[4], month_str[4], date_str[4], hrs_str[4], min_str[4], sec_str[4];
 
 
-    SSD1306_SetPosition(0,7);
+    SSD1306_SetPosition(0,line);
     itoa(timeData.year, yrs_str, 10);
     itoa(timeData.month, month_str, 10);
     itoa(timeData.date, date_str, 10);
@@ -141,7 +141,7 @@ void showTime(struct rtc_time timeData, int line) {
     SSD1306_DrawString(yrs_str);
 }
 
-void showWelcome(struct rtc_time timeData){
+void showWelcome(struct rtc_time timeData, char message){
     // draw welcome screen
     SSD1306_DrawLine (0, MAX_X, 4, 4);
     SSD1306_SetPosition (1, 1);
@@ -154,7 +154,12 @@ void showWelcome(struct rtc_time timeData){
     SSD1306_SetPosition (53, 5);
     SSD1306_DrawString ("2022");
 
-    showTime(timeData, 7);
+    showTime(timeData, 6);
+    SSD1306_SetPosition (0, 7);
+
+    char message_str[4];
+    itoa((int)message, message_str, 10);
+    SSD1306_DrawString(message_str);
 
 }
 
@@ -397,13 +402,42 @@ void detectButton(bool button){
     }
 }
 
+/*
+serial_init - Initialize the USART port
+*/
+void serial_init ( unsigned short ubrr ) {
+    UBRR0 = ubrr ; // Set baud rate
+    UCSR0B |= (1 << TXEN0 ); // Turn on transmitter
+    UCSR0B |= (1 << RXEN0 ); // Turn on receiver
+    UCSR0C = (3 << UCSZ00 ); // Set for async . operation , no parity ,
+    // one stop bit , 8 data bits
+}
+
+/*
+serial_out - Output a byte to the USART0 port
+*/
+void serial_out ( char ch )
+{
+    while (( UCSR0A & (1 << UDRE0 )) == 0);
+    UDR0 = ch ;
+}
+
+/*
+serial_in - Read a byte from the USART0 and return it
+*/
+char serial_in ()
+{
+    if ( !( UCSR0A & (1 << RXC0 )) ){return NULL;}
+    return UDR0;
+}
+
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
 int main(void)
 {
     // init ssd1306
     SSD1306_Init (addr);
-    SSD1306_ClearScreen ();
+    SSD1306_ClearScreen();
 
     // init ports
     // PD2 = sound, PD3 = motion
@@ -441,6 +475,10 @@ int main(void)
     servoClose();
 
 //    rtc_run();
+
+    // init serial
+    serial_init(3); //ubrr=7372800/(16*115200)-1
+    char message;
 
     while(1) {
         // ---- Main Loop ----
@@ -494,10 +532,11 @@ int main(void)
             sprintf(pressure_str, "%d   ", pressure);
 
 
+        message = serial_in();
 
         // update LCD
         if (curr_screen == WELCOME_SCREEN){
-            showWelcome(timeData);
+            showWelcome(timeData, message);
         }
 
         if (curr_screen == MENU_SCREEN) {
