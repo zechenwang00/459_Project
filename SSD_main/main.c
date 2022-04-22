@@ -3,8 +3,10 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <math.h>
+#include <avr/interrupt.h>
 #include "lib/ssd1306.h"
 #include "lib/i2c.h"
+#include "lib/I2C_slave.h"
 
 // definitions
 #define WELCOME_SCREEN  0
@@ -20,6 +22,8 @@
 
 #define FOSC 7372800
 #define BDIV ( FOSC / 100000 - 16) / 2 + 1
+
+#define VOC_I2C_ADDR 0x59
 
 // global vars
 volatile unsigned short pot_choice = 0;
@@ -266,9 +270,9 @@ void servoOpen() {
 
     while(time--) {
         PORTD |=  (1 << PD6);
-        _delay_us(2600);
+        _delay_us(1600);
         PORTD &= ~(1 << PD6);
-        _delay_us(17400);
+        _delay_us(18400);
     }
 }
 
@@ -295,7 +299,6 @@ void showDebug(void) {
             SSD1306_DrawString("->");
             if (button_signal) {
                 SSD1306_SetPosition(0, 4);
-                SSD1306_DrawString("goto: 0  ");
                 servoOpen();
                 _delay_ms(200);
                 servoClose();
@@ -340,12 +343,13 @@ void detectButton(bool button){
     }
 }
 
-
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
 int main(void)
 {
     // init ssd1306
+    sei();
+    I2C_init(0x00);
     SSD1306_Init (addr);
     SSD1306_ClearScreen ();
 
@@ -380,6 +384,7 @@ int main(void)
     unsigned short pressure; // pressure ADC2
     char pressure_str[4];
     char pot_str[4];
+    servoClose();
 
 
 
@@ -390,7 +395,12 @@ int main(void)
         // TODO: Implement different intervals for reading different sensors
         // TODO: Implement rotary encoder switching commands on lcd
 
-         SSD1306_ClearScreen ();
+        SSD1306_ClearScreen ();
+        if (rxbuffer[0] != NULL) {
+            SSD1306_SetPosition(0,6);
+            SSD1306_DrawString("ACK");
+        }
+
         // read sensors
         if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
             sound_signal = true;
@@ -409,6 +419,16 @@ int main(void)
         } else {
             button_signal = false;
         }
+
+//        unsigned char status;
+//        unsigned char command[2] = {0x26, 0x0f};
+//        unsigned char response[3];
+
+//        i2c_init(BDIV);
+//        status = i2c_io(VOC_I2C_ADDR, NULL, 0, command, 2, response, 3);
+//        SSD1306_SetPosition(0,6);
+//        SSD1306_DrawString((char *)response);
+
 
         // read ADC
         // TODO: use interrupts
@@ -473,9 +493,17 @@ int main(void)
             SSD1306_DrawString("pressure: ");
             SSD1306_DrawString(pressure_str);
 
+            // open lid when both sound and motion detected
             if (motion_signal & sound_signal) {
+                playSound();
                 servoOpen();
                 _delay_ms(100);
+                // close lid after motion turns OFF
+                while (motion_signal) {
+                    if ((PIND & (1 << PD3)) == 0) {
+                        motion_signal = false;
+                    }
+                }
                 servoClose();
                 _delay_ms(100);
             }
@@ -499,4 +527,3 @@ int main(void)
     // return value
     return 0;
 }
-#pragma clang diagnostic pop
