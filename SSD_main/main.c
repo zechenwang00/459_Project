@@ -6,7 +6,6 @@
 #include <avr/interrupt.h>
 #include "lib/ssd1306.h"
 #include "lib/i2c.h"
-#include "lib/I2C_slave.h"
 
 // definitions
 #define WELCOME_SCREEN  0
@@ -396,10 +395,7 @@ int main(void)
         // TODO: Implement rotary encoder switching commands on lcd
 
         SSD1306_ClearScreen ();
-        if (rxbuffer[0] != NULL) {
-            SSD1306_SetPosition(0,6);
-            SSD1306_DrawString("ACK");
-        }
+
 
         // read sensors
         if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
