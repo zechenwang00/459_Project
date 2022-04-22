@@ -141,7 +141,7 @@ void showTime(struct rtc_time timeData, int line) {
     SSD1306_DrawString(yrs_str);
 }
 
-void showWelcome(struct rtc_time timeData, char message){
+void showWelcome(struct rtc_time timeData){
     // draw welcome screen
     SSD1306_DrawLine (0, MAX_X, 4, 4);
     SSD1306_SetPosition (1, 1);
@@ -153,13 +153,14 @@ void showWelcome(struct rtc_time timeData, char message){
     SSD1306_DrawString ("GROUP 16");
     SSD1306_SetPosition (53, 5);
     SSD1306_DrawString ("2022");
+    SSD1306_DrawLine (0, MAX_X, 52, 52);
 
-    showTime(timeData, 6);
-    SSD1306_SetPosition (0, 7);
+    showTime(timeData, 7);
 
-    char message_str[4];
-    itoa((int)message, message_str, 10);
-    SSD1306_DrawString(message_str);
+//    SSD1306_SetPosition (0, 7);
+//    char message_str[4];
+//    itoa((int)message, message_str, 10);
+//    SSD1306_DrawString(message_str);
 
 }
 
@@ -186,10 +187,6 @@ void selectMenu (short choice, char* symbol) {
             if (button_signal)  material = MATERIAL_PAPER;
             break;
         case 4:
-            SSD1306_SetPosition(0, 6);
-            SSD1306_DrawString(symbol);
-            break;
-        case 5:
             SSD1306_SetPosition(0, 7);
             SSD1306_DrawString(symbol);
             break;
@@ -214,13 +211,13 @@ void showMenu(void){
     SSD1306_DrawString("  2. Aluminium");
     SSD1306_SetPosition(0,5);
     SSD1306_DrawString("  3. Paper");
-    SSD1306_SetPosition(0,6);
-    SSD1306_DrawString("  DEBUG");
+//    SSD1306_SetPosition(0,6);
+//    SSD1306_DrawString("  DEBUG");
 //    SSD1306_DrawLine (0, MAX_X, 52, 52);
     SSD1306_SetPosition(0,7);
     SSD1306_DrawString("  SENSOR INFO");
 
-    short choice = pot_choice % 6;
+    short choice = pot_choice % 5;
     selectMenu(choice, "->");
 }
 
@@ -380,13 +377,13 @@ void detectButton(bool button){
         if (curr_screen == WELCOME_SCREEN){
             curr_screen = MENU_SCREEN;
             _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) < 4) ) {
+        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 5) < 4) ) {
             curr_screen = CARBON_SCREEN;
             _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) == 4) ) {
-            curr_screen = DEBUG_SCREEN;
-            _delay_ms(100);
-        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 6) == 5) ) {
+//        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 5) == 4) ) {
+//            curr_screen = DEBUG_SCREEN;
+//            _delay_ms(100);
+        } else if ( (curr_screen == MENU_SCREEN) & ( (pot_choice % 5) == 4) ) {
             curr_screen = SENSOR_SCREEN;
             _delay_ms(100);
         } else if (curr_screen == SENSOR_SCREEN) {
@@ -476,9 +473,9 @@ int main(void)
 
 //    rtc_run();
 
-    // init serial
-    serial_init(3); //ubrr=7372800/(16*115200)-1
-    char message;
+//    // init serial
+//    serial_init(3); //ubrr=7372800/(16*115200)-1
+//    char message;
 
     while(1) {
         // ---- Main Loop ----
@@ -488,6 +485,7 @@ int main(void)
         // TODO: Implement rotary encoder switching commands on lcd
 
         SSD1306_ClearScreen ();
+
 
         // read sensors
         if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
@@ -532,11 +530,26 @@ int main(void)
             sprintf(pressure_str, "%d   ", pressure);
 
 
-        message = serial_in();
+//        message = serial_in();
+
+        // open lid when both sound and motion detected
+        if (motion_signal & sound_signal) {
+            playSound();
+            servoOpen();
+            _delay_ms(100);
+            // close lid after motion turns OFF
+            while (motion_signal) {
+                if ((PIND & (1 << PD3)) == 0) {
+                    motion_signal = false;
+                }
+            }
+            servoClose();
+            _delay_ms(100);
+        }
 
         // update LCD
         if (curr_screen == WELCOME_SCREEN){
-            showWelcome(timeData, message);
+            showWelcome(timeData);
         }
 
         if (curr_screen == MENU_SCREEN) {
@@ -581,21 +594,6 @@ int main(void)
             SSD1306_SetPosition(0,5);
             SSD1306_DrawString("pressure: ");
             SSD1306_DrawString(pressure_str);
-
-            // open lid when both sound and motion detected
-            if (motion_signal & sound_signal) {
-                playSound();
-                servoOpen();
-                _delay_ms(100);
-                // close lid after motion turns OFF
-                while (motion_signal) {
-                    if ((PIND & (1 << PD3)) == 0) {
-                        motion_signal = false;
-                    }
-                }
-                servoClose();
-                _delay_ms(100);
-            }
 
             SSD1306_SetPosition(0,7);
             SSD1306_DrawString("->  Back  <-");
