@@ -22,7 +22,7 @@
 #define FOSC 7372800
 #define BDIV ( FOSC / 100000 - 16) / 2 + 1
 
-#define VOC_I2C_ADDR 0x59
+#define RTC_I2C_ADDR 0xD0
 
 // global vars
 volatile unsigned short pot_choice = 0;
@@ -94,6 +94,37 @@ void showWelcome(void){
     SSD1306_DrawString ("GROUP 16");
     SSD1306_SetPosition (53, 5);
     SSD1306_DrawString ("2022");
+
+    unsigned char status;
+    unsigned char addr_sec   = 0x00;
+    unsigned char addr_min   = 0x01;
+    unsigned char addr_hrs   = 0x02;
+    unsigned char addr_day   = 0x03;
+    unsigned char addr_date  = 0x04;
+    unsigned char addr_mon   = 0x05;
+    unsigned char addr_yrs   = 0x06;
+    unsigned char control    = 0x07;
+
+    unsigned char wbuf[1];
+    unsigned char rbuf[1];
+    int seconds;
+    char sec_str[1];
+
+
+
+    i2c_init(BDIV);
+//    // set second
+//    wbuf[1] = 0x08;
+//    status = i2c_io(RTC_I2C_ADDR, &addr_sec, 1, wbuf, 1, NULL, 0);
+    // read second
+    status = i2c_io(RTC_I2C_ADDR, &addr_sec, 1, NULL, 0, rbuf, 1);
+
+    seconds = rbuf[0] & 0x0f;
+
+    snprintf(sec_str,1,"%d",seconds);
+
+    SSD1306_SetPosition(0,6);
+    SSD1306_DrawString(sec_str);
 
 //    unsigned char i2c_rbuf[9];
 //
@@ -347,8 +378,6 @@ void detectButton(bool button){
 int main(void)
 {
     // init ssd1306
-    sei();
-    I2C_init(0x00);
     SSD1306_Init (addr);
     SSD1306_ClearScreen ();
 
@@ -375,6 +404,28 @@ int main(void)
 //    TCCR0B &= ~(1 << WGM02 | 1 << CS01 | 1 << CS00);
 //    OCR0A = 0;
 
+    //set control
+//    unsigned char control;
+//    unsigned char wbuf[1];
+//    control = 0x07;
+//    wbuf[1] = 0b00010011;
+//    i2c_io(RTC_I2C_ADDR, &control, 1, wbuf, 1, NULL, 0);
+//    //set date
+//    uint8_t buf[] = {
+//            0x30, // seconds
+//            0x55, // minutes
+//            0x18, // hours
+//            0x06, // day
+//            0x25, // date
+//            0x04, // month
+//            0x13  // year
+//    };
+//    uint8_t abuf[] = {
+//            0x00
+//    };
+
+//    i2c_io(RTC_I2C_ADDR, abuf, sizeof(abuf), buf, sizeof(buf), NULL, 0);
+
 
     // init vars
     bool sound_signal = false;
@@ -395,7 +446,6 @@ int main(void)
         // TODO: Implement rotary encoder switching commands on lcd
 
         SSD1306_ClearScreen ();
-
 
         // read sensors
         if ((PIND & (1 << PD2)) != 0) {       // PD2 = sound
