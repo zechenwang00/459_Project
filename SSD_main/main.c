@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <avr/io.h>
 #include <util/delay.h>
@@ -6,6 +7,7 @@
 #include <avr/interrupt.h>
 #include "lib/ssd1306.h"
 #include "lib/i2c.h"
+#include "lib/rtc.h"
 
 // definitions
 #define WELCOME_SCREEN  0
@@ -82,7 +84,64 @@ void update_pot(short pot){
     }
 }
 
-void showWelcome(void){
+char* intToDay(int day){
+    switch (day) {
+        case 1:
+            return "Mon";
+            break;
+        case 2:
+            return "Tue";
+            break;
+        case 3:
+            return "Wed";
+            break;
+        case 4:
+            return "Thu";
+            break;
+        case 5:
+            return "Fri";
+            break;
+        case 6:
+            return "Sat";
+            break;
+        case 7:
+            return "Sun";
+            break;
+        default:
+            return "Mon";
+            break;
+    }
+}
+
+void showTime(struct rtc_time timeData, int line) {
+    rtc_get_time(&timeData);
+    char yrs_str[4], month_str[4], date_str[4], hrs_str[4], min_str[4], sec_str[4];
+
+
+    SSD1306_SetPosition(0,7);
+    itoa(timeData.year, yrs_str, 10);
+    itoa(timeData.month, month_str, 10);
+    itoa(timeData.date, date_str, 10);
+    itoa(timeData.hours, hrs_str, 10);
+    itoa(timeData.minutes, min_str, 10);
+    itoa(timeData.seconds, sec_str, 10);
+
+    SSD1306_DrawString(hrs_str);
+    SSD1306_DrawChar(':');
+    SSD1306_DrawString(min_str);
+    SSD1306_DrawChar(':');
+    SSD1306_DrawString(sec_str);
+    SSD1306_DrawChar(' ');
+    SSD1306_DrawString(intToDay(timeData.day));
+    SSD1306_DrawChar(' ');
+    SSD1306_DrawString(month_str);
+    SSD1306_DrawChar('/');
+    SSD1306_DrawString(date_str);
+    SSD1306_DrawChar('/');
+    SSD1306_DrawString(yrs_str);
+}
+
+void showWelcome(struct rtc_time timeData){
     // draw welcome screen
     SSD1306_DrawLine (0, MAX_X, 4, 4);
     SSD1306_SetPosition (1, 1);
@@ -95,43 +154,8 @@ void showWelcome(void){
     SSD1306_SetPosition (53, 5);
     SSD1306_DrawString ("2022");
 
-    unsigned char status;
-    unsigned char addr_sec   = 0x00;
-    unsigned char addr_min   = 0x01;
-    unsigned char addr_hrs   = 0x02;
-    unsigned char addr_day   = 0x03;
-    unsigned char addr_date  = 0x04;
-    unsigned char addr_mon   = 0x05;
-    unsigned char addr_yrs   = 0x06;
-    unsigned char control    = 0x07;
+    showTime(timeData, 7);
 
-    unsigned char wbuf[1];
-    unsigned char rbuf[1];
-    int seconds;
-    char sec_str[1];
-
-
-
-    i2c_init(BDIV);
-//    // set second
-//    wbuf[1] = 0x08;
-//    status = i2c_io(RTC_I2C_ADDR, &addr_sec, 1, wbuf, 1, NULL, 0);
-    // read second
-    status = i2c_io(RTC_I2C_ADDR, &addr_sec, 1, NULL, 0, rbuf, 1);
-
-    seconds = rbuf[0] & 0x0f;
-
-    snprintf(sec_str,1,"%d",seconds);
-
-    SSD1306_SetPosition(0,6);
-    SSD1306_DrawString(sec_str);
-
-//    unsigned char i2c_rbuf[9];
-//
-//    i2c_init(BDIV);
-//    i2c_io(0x08, NULL, 0, NULL, 0, i2c_rbuf, 9);
-//    SSD1306_SetPosition (0, 7);
-//    SSD1306_DrawString( (char *) i2c_rbuf);
 }
 
 void selectMenu (short choice, char* symbol) {
@@ -404,28 +428,8 @@ int main(void)
 //    TCCR0B &= ~(1 << WGM02 | 1 << CS01 | 1 << CS00);
 //    OCR0A = 0;
 
-    //set control
-//    unsigned char control;
-//    unsigned char wbuf[1];
-//    control = 0x07;
-//    wbuf[1] = 0b00010011;
-//    i2c_io(RTC_I2C_ADDR, &control, 1, wbuf, 1, NULL, 0);
-//    //set date
-//    uint8_t buf[] = {
-//            0x30, // seconds
-//            0x55, // minutes
-//            0x18, // hours
-//            0x06, // day
-//            0x25, // date
-//            0x04, // month
-//            0x13  // year
-//    };
-//    uint8_t abuf[] = {
-//            0x00
-//    };
-
-//    i2c_io(RTC_I2C_ADDR, abuf, sizeof(abuf), buf, sizeof(buf), NULL, 0);
-
+    i2c_init(BDIV);
+    struct rtc_time timeData;
 
     // init vars
     bool sound_signal = false;
@@ -436,7 +440,7 @@ int main(void)
     char pot_str[4];
     servoClose();
 
-
+//    rtc_run();
 
     while(1) {
         // ---- Main Loop ----
@@ -493,7 +497,7 @@ int main(void)
 
         // update LCD
         if (curr_screen == WELCOME_SCREEN){
-            showWelcome();
+            showWelcome(timeData);
         }
 
         if (curr_screen == MENU_SCREEN) {
