@@ -1,3 +1,7 @@
+/** 
+ * reference: https://github.com/vanvincent/googleroom
+ */
+
 #ifndef GROOM_RTC_H_
 #define GROOM_RTC_H_
 
