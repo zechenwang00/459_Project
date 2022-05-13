@@ -1,3 +1,12 @@
+/**
+ * USC EE459 Embedded Systems Design Laboratory
+ * Spring 2022 Team 16 - Smart Recycling Bin
+ *
+ * Authors: Zechen Wang, Haomei Liu, Zhuojun Chen
+ *
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
